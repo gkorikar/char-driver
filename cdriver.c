@@ -8,13 +8,54 @@
 #include <linux/kernel.h>	// for talking to kernel
 #include <linux/init.h>		// contains initialization and cleanup functions
 #include <linux/fs.h>		// for fetching device number
+#include <linux/cdev.h>		// for character device file 
+#include <linux/semaphore.h>
 
 //defining macros
 #define MY_DEVICE "Gau_Device"
 
+struct memdevice{
+    char mem_map[150];
+    struct semaphore sem;
+}my_device;
+
 //necessary varaibles 
 int major_number, ret;
 dev_t gdevice;
+struct cdev *device_file;
+
+//defining file operations on device file
+int open_dfile(struct inode *inode,struct file *filp){
+    if(down_interruptible(&my_device.sem)!=0){
+	printk(KERN_ALERT "Device cannot be opened");
+	return -1;
+    }
+    printk(KERN_ALERT "Device opened\n");
+    return 0;
+}
+
+ssize_t read_dfile(struct file* filp,char* buf_data,size_t buf_size,loff_t* seek){
+    return 0;
+}
+
+ssize_t write_dfile(struct file* filp, const char* buf_data,size_t buf_size,loff_t* seek){
+    return 0;
+}
+
+int close_dfile(struct inode *inode,struct file *flip){
+    up(&my_device.sem);
+    printk(KERN_ALERT "Device closed\n");
+    return 0;
+}
+
+//setting devce file operations
+struct file_operations fops ={
+    .owner=THIS_MODULE,	//this module owns the device
+    .open=open_dfile,	//set open device file call back function
+    .read=read_dfile,	//set read device file call back function
+    .write=write_dfile,	//set write to device file call back function
+    .release=close_dfile//set close device file call back function
+};
 
 // defining module entry function
 static int __init gdevice_setup(void){
@@ -24,7 +65,23 @@ static int __init gdevice_setup(void){
 	return ret;
     }
     major_number=MAJOR(gdevice);	// extract major number
-    printk("major number allocated is %d\n",major_number);
+    printk("type \"mknod /dev/%s c %d 0\" to create device node\n",MY_DEVICE,major_number);
+    
+    //create character device file in kernel
+    device_file=cdev_alloc();
+   //set device file properties 
+    ret=cdev_add(device_file,gdevice,1);
+    if(ret<0){
+	printk(KERN_ALERT "Device cannot be added\n");
+	return ret;
+    }
+    device_file->ops=&fops;
+    printk(KERN_ALERT "Device file sucessfully created\n");
+    sema_init(&my_device.sem,1);	//setting lock value for device
+
+
+
+
     return 0;
 } 
 
