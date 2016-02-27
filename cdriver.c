@@ -1,4 +1,4 @@
-// Thi sc fiel is a character device driver for scull based devices
+// This code is a character device driver for scull based devices
 // AUthor: Gautam Anand Korikar
 // Start date: Feb 24 2016
 
@@ -10,6 +10,7 @@
 #include <linux/fs.h>		// for fetching device number
 #include <linux/cdev.h>		// for character device file 
 #include <linux/semaphore.h>
+#include <asm/uaccess.h>	// interacting with user space
 
 //defining macros
 #define MY_DEVICE "Gau_Device"
@@ -35,11 +36,13 @@ int open_dfile(struct inode *inode,struct file *filp){
 }
 
 ssize_t read_dfile(struct file* filp,char* buf_data,size_t buf_size,loff_t* seek){
-    return 0;
+    ret=copy_to_user(buf_data,my_device.mem_map,buf_size);
+    return ret;
 }
 
 ssize_t write_dfile(struct file* filp, const char* buf_data,size_t buf_size,loff_t* seek){
-    return 0;
+    ret=copy_from_user(my_device.mem_map,buf_data,buf_size);
+    return ret;
 }
 
 int close_dfile(struct inode *inode,struct file *flip){
@@ -69,13 +72,13 @@ static int __init gdevice_setup(void){
     
     //create character device file in kernel
     device_file=cdev_alloc();
+    device_file->ops=&fops;
    //set device file properties 
     ret=cdev_add(device_file,gdevice,1);
     if(ret<0){
 	printk(KERN_ALERT "Device cannot be added\n");
 	return ret;
     }
-    device_file->ops=&fops;
     printk(KERN_ALERT "Device file sucessfully created\n");
     sema_init(&my_device.sem,1);	//setting lock value for device
 
